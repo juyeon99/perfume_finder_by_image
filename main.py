@@ -1,15 +1,10 @@
 from fastapi import FastAPI, File, UploadFile
-import faiss
 import numpy as np
 from transformers import CLIPProcessor, CLIPModel, AutoProcessor, AutoModelForCausalLM
 from PIL import Image, ImageDraw
-import io
-import os
-import requests
-import json
-import hashlib
-import torch
+import io,os,requests,json,hashlib,torch,faiss
 from dotenv import load_dotenv
+from rembg import remove
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -96,7 +91,7 @@ def detect_and_crop_bottle(image):
     )
 
     for bbox, label in zip(parsed_answer['<OD>']['bboxes'], parsed_answer['<OD>']['labels']):
-        if label.lower() == "bottle":  # Only process bottles
+        if label.lower() == "bottle" or label.lower() == "personal care":  # Only process bottles
             x1, y1, x2, y2 = map(int, bbox)
             cropped_image = image.crop((x1, y1, x2, y2))
             # cropped_image.show()
@@ -109,21 +104,38 @@ async def search_image(file: UploadFile = File(...)):
     image_bytes = await file.read()
 
     try:
+        # Load and preprocess the uploaded image
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
         # Detect and crop the bottle
         cropped_image = detect_and_crop_bottle(image)
-        # if cropped_image is None:
-        #     return {"error": "No bottle detected in the uploaded image."}
+        # cropped_image = image
 
-        # Compute embedding for the cropped image
-        embedding = compute_embedding(cropped_image).flatten()
+        # Remove background from the cropped image
+        cropped_image_bytes = io.BytesIO()
+        cropped_image.save(cropped_image_bytes, format="PNG")
+        cropped_image_bytes.seek(0)
+        output_image_bytes = remove(cropped_image_bytes.getvalue())
+
+        # Convert the output bytes to a PIL image
+        output_image = Image.open(io.BytesIO(output_image_bytes)).convert("RGBA")
+
+        # Add a white background
+        white_background = Image.new("RGBA", output_image.size, "WHITE")
+        white_background.paste(output_image, mask=output_image)
+
+        # Convert the image to RGB format for embedding computation
+        final_image = white_background.convert("RGB")
+        final_image.show()
+
+        # Compute embedding for the image with the background removed
+        embedding = compute_embedding(final_image).flatten()
         embedding /= np.linalg.norm(embedding)
 
         # Search using FAISS
         D, I = index.search(embedding.reshape(1, -1).astype(np.float32), k=10)
 
-        # Filter results
+        # Filter results based on similarity threshold
         threshold = 0.3
         results = [
             {
