@@ -3,3 +3,4 @@ embedding_cache
 image_cache
 .env
 test
+jina_embedding_cache
