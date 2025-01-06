@@ -1,7 +1,7 @@
 from fastapi import FastAPI, File, UploadFile
 import faiss
 import numpy as np
-from transformers import CLIPProcessor, CLIPModel
+from transformers import AutoImageProcessor, Swinv2Model
 from PIL import Image, ImageEnhance
 import io,os,json,hashlib,torch,re
 from rembg import remove
@@ -9,15 +9,15 @@ from rembg import remove
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 CACHE_DIR = "./image_cache"
-EMBEDDING_CACHE_DIR = "./embedding_cache"
+EMBEDDING_CACHE_DIR = "./swin_embedding_cache"
 TEST_IMAGE_DIR = "./test"
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(EMBEDDING_CACHE_DIR, exist_ok=True)
 
 # CLIP 모델 및 프로세서 로드 (GPU로 설정)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(device)
-processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
+model = Swinv2Model.from_pretrained("microsoft/swinv2-large-patch4-window12-192-22k")
+processor = AutoImageProcessor.from_pretrained("microsoft/swinv2-large-patch4-window12-192-22k")
 
 # JSON 데이터 로드
 try:
@@ -55,9 +55,15 @@ def enhance_image_brightness(image, factor=2.0):
 
 # 임베딩 생성 함수
 def compute_embedding(image):
-    inputs = processor(images=image, return_tensors="pt").to(device)
-    outputs = model.get_image_features(**inputs)
-    return outputs.cpu().detach().numpy()
+    inputs = processor(image, return_tensors="pt")
+    outputs = model(**inputs.to(device))
+
+    # Extract pooled_output
+    if outputs.pooler_output is not None:
+        embedding = outputs.pooler_output.detach().cpu().numpy()
+    else:
+        embedding = outputs.last_hidden_state.mean(dim=1).detach().cpu().numpy()
+    return embedding
 
 # 임베딩 캐싱 함수
 def get_or_compute_embedding(image, url):
@@ -79,6 +85,7 @@ for item in perfume_data:
     try:
         image = download_image_with_cache(item["url"])
         db_images.append({"id": item["id"], "url": item["url"]})
+        print(f"Processing image ID {item['id']}")
 
         embedding = get_or_compute_embedding(image, item["url"])
         db_embeddings.append(embedding)
@@ -101,7 +108,6 @@ def evaluate():
         test_image_path = os.path.join(TEST_IMAGE_DIR, test_image_name)
         try:
             image = Image.open(test_image_path).convert("RGB")
-            # image = enhance_image_brightness(image, factor=2.0)
 
             image_bytes = io.BytesIO()
             image.save(image_bytes, format="PNG")

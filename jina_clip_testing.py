@@ -118,13 +118,11 @@ def evaluate():
             embedding = compute_embedding(final_image).flatten()
             embedding /= np.linalg.norm(embedding)
 
-            D, I = index.search(embedding.reshape(1, -1).astype(np.float32), k=1)
+            D, I = index.search(embedding.reshape(1, -1).astype(np.float32), k=10)
 
             results = [
                 {
-                    "index": int(i),
                     "id": db_images[i]["id"],
-                    "url": db_images[i]["url"],
                     "similarity": float(D[0][idx])
                 }
                 for idx, i in enumerate(I[0])
@@ -139,12 +137,12 @@ def evaluate():
                 correct = False
 
             test_results.append({
-                "test_image": test_image_name,
                 "ground_truth_id": ground_truth_id,
                 "correct": correct,
                 "results": results
             })
-            print(f"Processed test result: {test_results}")
+            if correct == False:
+                print(f"Processed test result: {test_results}\n")
         except Exception as e:
             print(f"Failed to process test image {test_image_name}: {e}")
 
@@ -168,4 +166,4 @@ if __name__ == "__main__":
     print(f"Evaluation Accuracy: {accuracy * 100:.2f}%")
     print(f"True Matches: {true_count}, False Matches: {false_count}")
     for result in evaluation_results["details"]:
-        print(f"Test Image: {result['test_image']}, Ground Truth ID: {result['ground_truth_id']}, Correct: {result['correct']}")
+        print(f"Ground Truth ID: {result['ground_truth_id']}, Correct: {result['correct']}")

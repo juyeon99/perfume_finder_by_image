@@ -4,3 +4,4 @@ image_cache
 .env
 test
 jina_embedding_cache
+swin_embedding_cache

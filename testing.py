@@ -103,10 +103,11 @@ def evaluate():
             image = Image.open(test_image_path).convert("RGB")
             # image = enhance_image_brightness(image, factor=2.0)
 
-            image_bytes = io.BytesIO()
-            image.save(image_bytes, format="PNG")
-            image_bytes.seek(0)
-            output_image_bytes = remove(image_bytes.getvalue())
+            cropped_image = image
+            cropped_image_bytes = io.BytesIO()
+            cropped_image.save(cropped_image_bytes, format="PNG")
+            cropped_image_bytes.seek(0)
+            output_image_bytes = remove(cropped_image_bytes.getvalue())
 
             # Convert the output bytes to a PIL image
             output_image = Image.open(io.BytesIO(output_image_bytes)).convert("RGBA")
