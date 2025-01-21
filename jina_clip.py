@@ -15,7 +15,8 @@ EMBEDDING_CACHE_DIR = "./jina_embedding_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(EMBEDDING_CACHE_DIR, exist_ok=True)
 
-model = AutoModel.from_pretrained('jinaai/jina-clip-v2', trust_remote_code=True)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = AutoModel.from_pretrained("jinaai/jina-clip-v2", trust_remote_code=True).to(device)
 
 # JSON 데이터 로드
 try:
